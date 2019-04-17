@@ -27,10 +27,11 @@ return_status, frame = video_capture.read()
 
 current_frame = 0
 count = 0
+frame_predictions_dictionary_with_id = {}
 
 while return_status:
 
-    if(count==4):
+    if (count == 4):
         # tracking
         frame = imutils.resize(frame, width=400)
 
@@ -39,15 +40,18 @@ while return_status:
             (H, W) = frame.shape[:2]
 
         # Saving the current frame's image as a jpg file
-        frame_location = frame_output_path + "frame" + str(current_frame) + ".jpg"
+        frame_name = "frame" + str(current_frame) + ".jpg"
+        frame_location = frame_output_path + frame_name
         print("Creating..." + frame_location)
         cv2.imwrite(frame_location, frame)
 
         predictions = YOLO().predict(frame)
 
         rects = []
+        centroids = []
         boxes = predictions[0]
         labels = predictions[1]
+        frame_predictions_dictionary_with_id[frame_name] = []
 
         image = frame.copy()
         image_h, image_w, _ = image.shape
@@ -63,37 +67,32 @@ while return_status:
             temp = np.array([xmin, ymin, xmax, ymax])
 
             rects.append(temp.astype("int"))
-            print("rects")
-            print(rects)
             text = labels[i]
 
             cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (color_mod, 255, 0), 2)
 
-            cv2.putText(image,
-                        text,
-                        (xmin, ymin - 15),
-                        cv2.FONT_HERSHEY_COMPLEX,
-                        1e-3 * image_h,
-                        (color_mod, 255, 0), 1)
+            centroids.append([int((xmin + xmax) / 2), int((ymin + ymax) / 2)])
 
         # update our centroid tracker using the computed set of bounding
         # box rectangles
         objects = ct.update(rects)
-
-        print("objects")
-        print(objects)
 
         # loop over the tracked objects
         for (objectID, centroid) in objects.items():
             # draw both the ID of the object and the centroid of the
             # object on the output frame
             text = "ID {}".format(objectID)
-            cv2.putText(image, text, (centroid[0] - 10, centroid[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            cv2.circle(image, (centroid[0], centroid[1]), 2, (0, 255, 0), -1)
 
-            print("centroid")
-            print(centroid[0], centroid[1])
+            cv2.circle(image, (centroid[0], centroid[1]), 2, (0, 255, 0), -1)
+            centroid_co = [centroid[0], centroid[1]]
+
+            if centroid_co in centroids:
+                i = centroids.index(centroid_co)
+                text = "{} - ID {}".format(labels[i], objectID)
+                frame_predictions_dictionary_with_id[frame_name].append(text)
+
+            cv2.putText(image, text, (centroid[0] - 10, centroid[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
 
         # show the output frame
         cv2.imshow("Frame", image)
@@ -102,6 +101,7 @@ while return_status:
         current_frame += 1
         count = 0
 
+    print(frame_predictions_dictionary_with_id)
     # Capture frame-by-frame
     return_status, frame = video_capture.read()
     count += 1
@@ -109,4 +109,3 @@ while return_status:
 # do a bit of cleanup
 cv2.destroyAllWindows()
 video_capture.release()
-
